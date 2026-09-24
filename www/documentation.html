@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Christie M 4K25 RGB</title>
+    <style>
+        body { font-family: Segoe UI, Arial, sans-serif; font-size: 13px; margin: 16px; color: #222; }
+        h2 { font-size: 16px; margin-top: 20px; }
+        code { background: #f2f2f2; padding: 1px 4px; }
+        table { border-collapse: collapse; margin: 8px 0; }
+        th, td { border: 1px solid #ccc; padding: 4px 8px; text-align: left; }
+        .warn { background: #fff6e0; border-left: 3px solid #e8a33d; padding: 8px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+
+<h1>Christie M 4K25 RGB</h1>
+
+<p>Controls a Christie M 4K25 RGB over Christie's serial API on <b>TCP port 3002</b>.
+This projector does not implement PJLink; port 3002 is the only network control
+interface it offers.</p>
+
+<p><b>Built for main control board software 1.3.x</b>, developed and verified
+against a unit running <code>ChristieM 1.3.9</code>. The set of commands the
+projector answers is a property of its firmware rather than its model &mdash;
+this unit runs Christie's TruLife+ platform, which implements roughly a third
+of the codes in the published M Series serial API document. On materially
+different software, some readings may not populate. The projector's running
+versions are listed on its own web interface, and under
+<b>Menu &rarr; Status &rarr; Versions</b>.</p>
+
+<h2>Installation</h2>
+<ol>
+    <li>Add the driver to the project.</li>
+    <li>Set the projector's IP address under <b>Connections &rarr; Network</b>.
+        The projector should have a DHCP reservation &mdash; the driver has no
+        discovery, and a changed address silently stops all control.</li>
+    <li>Bind the sources feeding the projector to the HDMI 1&ndash;4 video inputs
+        under <b>Connections &rarr; Video</b>.</li>
+    <li>Set the <b>Input N Index</b> properties (see below).</li>
+    <li>Run the <b>Print Status</b> action and confirm the Lua output window shows
+        the model, serial number and hours. That confirms two-way communication.</li>
+</ol>
+
+<div class="warn">
+    <b>Input indices need confirming per installation.</b> The projector does not
+    publish its input list over any interface, so the driver cannot discover it.
+    Each HDMI binding sends a Christie <code>SIN</code> index that you set in the
+    properties. To find the right numbers, switch the projector to an input by
+    hand and run <b>Print Status</b> &mdash; it prints the current index and the
+    projector's own name for it, for example <code>1 One-Port HDMI0</code>.
+</div>
+
+<h2>Properties</h2>
+<table>
+    <tr><th>Property</th><th>Notes</th></tr>
+    <tr><td>Debug Mode</td><td>Prints all protocol traffic to the Lua output window. Switches itself back off after an hour.</td></tr>
+    <tr><td>Poll Interval</td><td>Seconds between status polls, default 30. Diagnostics (hours, temperature, alarms) are read every tenth poll.</td></tr>
+    <tr><td>Input 1&ndash;4 Index</td><td>The Christie <code>SIN</code> index each HDMI binding selects.</td></tr>
+</table>
+
+<h2>Programming commands</h2>
+<table>
+    <tr><th>Command</th><th>Notes</th></tr>
+    <tr><td>SetBrightness</td><td>Laser power, 30&ndash;100%. The projector itself will not run its lasers below 20%, but Christie advise against 30% or lower &mdash; at those levels LiteLOC is compromised, lasers may shut down and colours may drop out &mdash; so the driver refuses anything under 30%.</td></tr>
+    <tr><td>ShutterOpen / ShutterClose</td><td>The mechanical shutter (douser).</td></tr>
+    <tr><td>SetTestPattern</td><td>21 patterns, as listed in the projector's own menu. Rejected while the projector is in standby.</td></tr>
+    <tr><td>SetLiteLOC</td><td>Holds brightness and colour constant over time.</td></tr>
+    <tr><td>SetLensPosition</td><td>Move focus, zoom or lens offset to an absolute motor position. The valid range depends on the lens fitted, so the projector rather than the driver decides what is out of range; positions can be negative.</td></tr>
+    <tr><td>NudgeLens</td><td>The same four axes, relative to the current position, for keypad or on-screen adjustment.</td></tr>
+    <tr><td>SaveLensPreset / RecallLensPreset</td><td>Four slots holding all four motor positions. See the note below.</td></tr>
+    <tr><td>SendRaw</td><td>Escape hatch for any code the driver does not wrap, e.g. <code>GAM?</code> to read or <code>SHU 1</code> to write. Subcodes work too: <code>LAS+POWR?</code></td></tr>
+    <tr><td>RefreshStatus</td><td>Forces an immediate poll.</td></tr>
+</table>
+
+<h2>Variables</h2>
+<p>All read-only, for use in programming:
+<code>POWER_STATE</code>, <code>BRIGHTNESS</code>, <code>LITELOC</code>,
+<code>SHUTTER_OPEN</code>, <code>INPUT_NAME</code>, <code>TEST_PATTERN</code>,
+<code>HOURS</code>, <code>INTAKE_TEMP</code>, <code>ALARMS</code>,
+<code>CONNECTED</code>, <code>LENS_FOCUS</code>, <code>LENS_ZOOM</code>,
+<code>LENS_H</code>, <code>LENS_V</code>.</p>
+
+<div class="note">
+    <b>Lens presets are the driver's, not the projector's.</b> This projector
+    has no lens memory &mdash; the ILS codes are absent, and recalling a channel
+    does not move the lens. <b>SaveLensPreset</b> therefore stores the four
+    motor positions in the driver's own persistence and <b>RecallLensPreset</b>
+    replays them as absolute moves, which is how a scope / 16:9 screen-ratio
+    preset can work at all here. Presets survive driver and controller
+    restarts, but they are per-driver: replacing the driver loses them, and
+    they are only meaningful for the lens they were saved with.
+    <p>Lens positions can be read at any time, but the projector refuses to
+    <i>move</i> the lens unless it is on. Both commands check power first and
+    log the reason instead of sending a move that would be rejected. Allow a
+    few seconds for the motors to travel before the variables catch up.</p>
+</div>
+
+<p><code>POWER_STATE</code> carries the projector's own wording rather than a
+boolean &mdash; "Standby Mode", "Warming Up", "On", "Cooling Down". Power on takes
+about 16 seconds, and for the first few of those the projector accepts a TCP
+connection but answers nothing at all. The driver treats that silence as
+"unknown" rather than "off", and re-reads the power state 20 seconds after any
+power command.</p>
+
+<h2>Troubleshooting</h2>
+<table>
+    <tr><th>Symptom</th><th>Cause</th></tr>
+    <tr><td>No status, <code>CONNECTED</code> is 0</td><td>Wrong IP, or something else already holds the connection. Confirm with <code>telnet &lt;ip&gt; 3002</code>.</td></tr>
+    <tr><td>Test pattern command does nothing</td><td>Image controls are rejected in standby. Turn the projector on first; with Debug Mode on you will see <code>ERR00105 Disabled Control</code>.</td></tr>
+    <tr><td>Brightness command ignored</td><td>Values below 30% are refused, per Christie's own low-brightness guidance; check the Lua output window.</td></tr>
+    <tr><td>Wrong source selected</td><td>The Input N Index properties do not match this projector's input numbering.</td></tr>
+</table>
+
+</body>
+</html>

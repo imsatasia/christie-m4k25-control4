@@ -1,0 +1,111 @@
+name: Release
+
+# Pushing a tag like v1.0.1 builds christie_m4k25.c4z and attaches it to a
+# GitHub Release for that tag (creating the Release if it doesn't exist yet).
+#
+#   git tag v1.0.1 && git push origin v1.0.1
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish .c4z
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # create the Release and upload the asset
+      actions: read # look up the CI run for the tagged commit
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      TAG: ${{ github.ref_name }}
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+        with:
+          fetch-depth: 0
+
+      # The tag must name the driver version, so a release can't ship a
+      # .c4z whose Composer-visible "Driver Version" says something else.
+      - name: Check the tag matches driver.xml
+        run: |
+          python3 - <<'PY'
+          import os, re, sys
+          import xml.etree.ElementTree as ET
+
+          tag = os.environ["TAG"]
+          m = re.fullmatch(r"v(\d+\.\d+\.\d+)(-[0-9A-Za-z.-]+)?", tag)
+          if not m:
+              sys.exit(f"tag {tag!r} is not vMAJOR.MINOR.PATCH[-suffix]")
+          version = None
+          for prop in ET.parse("driver.xml").getroot().iter("property"):
+              if prop.findtext("name") == "Driver Version":
+                  version = prop.findtext("default")
+          if version != m.group(1):
+              sys.exit(f"tag {tag} != driver.xml 'Driver Version' {version!r}")
+          print(f"tag {tag} matches Driver Version {version}")
+          PY
+
+      # Only ever release what is on main -- not a tag pushed onto some
+      # other branch.
+      - name: Check the tagged commit is on main
+        run: |
+          git fetch --quiet origin main
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main \
+            || { echo "::error::$GITHUB_SHA is not on main"; exit 1; }
+
+      # The TruffleHog action does nothing on a tag push (it scans the push's
+      # commit list, which is empty for a tag), so calling it here would be a
+      # green check that scanned nothing. CI's run on this commit did scan it
+      # -- and CI's other jobs `needs:` that scan -- so require CI to have
+      # passed. Waits, since the tag is often pushed right after the commit.
+      - name: Require a passing CI run on this commit (includes the secret scan)
+        run: |
+          for attempt in $(seq 1 60); do
+            runs=$(gh run list --workflow CI --commit "$GITHUB_SHA" --json status,conclusion)
+            ok=$(jq '[.[] | select(.status == "completed" and .conclusion == "success")] | length' <<<"$runs")
+            pending=$(jq '[.[] | select(.status != "completed")] | length' <<<"$runs")
+            if [ "$ok" -ge 1 ]; then
+              echo "CI passed for $GITHUB_SHA"
+              exit 0
+            fi
+            if [ "$pending" -eq 0 ] && [ "$attempt" -gt 3 ]; then
+              echo "::error::No passing CI run for $GITHUB_SHA, and none in progress"
+              exit 1
+            fi
+            echo "Waiting for CI on $GITHUB_SHA (attempt $attempt)..."
+            sleep 20
+          done
+          echo "::error::Timed out waiting for CI on $GITHUB_SHA"
+          exit 1
+
+      # The image gives build.sh a Lua 5.1 to byte-compile driver.lua with,
+      # so a syntax error fails the release instead of shipping.
+      - name: Build test image
+        run: docker build -t christie-lua .
+
+      - name: Build the .c4z
+        run: |
+          ./build.sh
+          sha256sum christie_m4k25.c4z | tee christie_m4k25.c4z.sha256
+
+      - name: Publish the GitHub Release
+        run: |
+          flags=""
+          case "$TAG" in *-*) flags="--prerelease" ;; esac
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # A Release made in the web UI already exists for this tag.
+            gh release upload "$TAG" christie_m4k25.c4z christie_m4k25.c4z.sha256 --clobber
+          else
+            # shellcheck disable=SC2086
+            gh release create "$TAG" christie_m4k25.c4z christie_m4k25.c4z.sha256 \
+              --verify-tag --title "$TAG" --generate-notes $flags
+          fi

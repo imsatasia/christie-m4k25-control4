@@ -1,0 +1,7 @@
+# Build artifact -- always regenerate with ./build.sh, never hand-edit.
+christie_m4k25.c4z
+
+# Lua bytecode
+*.luac
+
+.DS_Store

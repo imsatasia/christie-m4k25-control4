@@ -1,0 +1,443 @@
+<?xml version="1.0" encoding="utf-8"?>
+<devicedata>
+    <copyright>2026</copyright>
+    <creator>imsatasia</creator>
+    <name>Christie M 4K25 RGB</name>
+    <manufacturer>Christie</manufacturer>
+    <model>M 4K25 RGB</model>
+    <created>2026-09-18</created>
+    <modified>2026-09-18</modified>
+    <version>2</version>
+    <small>devices_sm/projector.gif</small>
+    <large>devices_lg/projector.gif</large>
+    <control>lua_gen</control>
+    <!-- Only "ip", "serial" and "ir" are recognised; "network" is not a
+         value Composer knows. -->
+    <controlmethod>ip</controlmethod>
+    <driver>DriverWorks</driver>
+    <!-- Must stay False: "combo" means a driver that binds to no Control4
+         proxy at all. Setting it True alongside the projector proxy below
+         makes Composer drop every proxy-owned binding, so the HDMI inputs
+         vanish from Connections. -->
+    <combo>False</combo>
+
+    <proxies qty="1">
+        <proxy proxybindingid="5001" name="Christie M 4K25 RGB" primary="True">projector</proxy>
+    </proxies>
+
+    <!-- The projector proxy shares the TV proxy's capability set; only the
+         input ones are meaningful here, since this device has no audio.
+         The *_count values must match the number of connections declared
+         below - a missing video_consumer_count reads as 0 and the proxy
+         then publishes no inputs for Composer to show. -->
+    <capabilities>
+        <has_discrete_input_select>True</has_discrete_input_select>
+        <has_toad_input_select>False</has_toad_input_select>
+        <video_consumer_count>4</video_consumer_count>
+        <video_provider_count>0</video_provider_count>
+        <audio_consumer_count>0</audio_consumer_count>
+        <audio_provider_count>0</audio_provider_count>
+    </capabilities>
+
+    <config>
+        <power_command_needed>False</power_command_needed>
+        <!-- The projector has separate on and off commands (PWR 1 / PWR 0)
+             rather than a single toggle, so room power management can drive
+             it to a known state instead of guessing. -->
+        <power_management_method>DiscreteCodes</power_management_method>
+        <documentation file="www/documentation.html"/>
+        <script file="driver.lua"/>
+
+        <properties>
+            <property>
+                <name>Driver Version</name>
+                <type>STRING</type>
+                <readonly>true</readonly>
+                <default>1.0.1</default>
+            </property>
+                <property>
+                    <name>Tested Firmware</name>
+                    <type>STRING</type>
+                    <readonly>true</readonly>
+                    <default>1.3.x (verified against ChristieM 1.3.9)</default>
+                </property>
+                <property>
+                    <name>Debug Mode</name>
+                <type>LIST</type>
+                <items>
+                    <item>Off</item>
+                    <item>On</item>
+                </items>
+                <default>Off</default>
+                <tooltip>Prints protocol traffic to the Lua output window. Turns itself off after an hour.</tooltip>
+            </property>
+            <property>
+                <name>Poll Interval</name>
+                <type>RANGED_INTEGER</type>
+                <minimum>5</minimum>
+                <maximum>300</maximum>
+                <default>30</default>
+                <tooltip>Seconds between status polls. Each poll is a handful of small TCP messages.</tooltip>
+            </property>
+            <property>
+                <name>Input 1 Index</name>
+                <type>RANGED_INTEGER</type>
+                <minimum>1</minimum>
+                <maximum>11</maximum>
+                <default>1</default>
+                <tooltip>Christie SIN index that the HDMI 1 binding selects. Read the projector's current input with the Print Status action to confirm.</tooltip>
+            </property>
+            <property>
+                <name>Input 2 Index</name>
+                <type>RANGED_INTEGER</type>
+                <minimum>1</minimum>
+                <maximum>11</maximum>
+                <default>2</default>
+                <tooltip>Christie SIN index that the HDMI 2 binding selects.</tooltip>
+            </property>
+            <property>
+                <name>Input 3 Index</name>
+                <type>RANGED_INTEGER</type>
+                <minimum>1</minimum>
+                <maximum>11</maximum>
+                <default>3</default>
+                <tooltip>Christie SIN index that the HDMI 3 binding selects.</tooltip>
+            </property>
+            <property>
+                <name>Input 4 Index</name>
+                <type>RANGED_INTEGER</type>
+                <minimum>1</minimum>
+                <maximum>11</maximum>
+                <default>4</default>
+                <tooltip>Christie SIN index that the HDMI 4 binding selects.</tooltip>
+            </property>
+        </properties>
+
+        <actions>
+            <action>
+                <name>Refresh Status</name>
+                <command>RefreshStatus</command>
+            </action>
+            <action>
+                <name>Print Status</name>
+                <command>PrintStatus</command>
+            </action>
+        </actions>
+
+        <commands>
+            <command>
+                <name>SetBrightness</name>
+                <description>Set brightness (laser power) to %Brightness%%</description>
+                <params>
+                    <param>
+                        <name>Brightness</name>
+                        <type>RANGED_INTEGER</type>
+                        <!-- Christie recommend against 30% or lower, which is
+                             stricter than the projector's own 20% floor. -->
+                        <minimum>30</minimum>
+                        <maximum>100</maximum>
+                        <default>70</default>
+                    </param>
+                </params>
+            </command>
+            <command>
+                <name>ShutterOpen</name>
+                <description>Open the shutter</description>
+            </command>
+            <command>
+                <name>ShutterClose</name>
+                <description>Close the shutter</description>
+            </command>
+            <command>
+                <name>SetTestPattern</name>
+                <description>Show test pattern %Pattern%</description>
+                <params>
+                    <param>
+                        <name>Pattern</name>
+                        <type>LIST</type>
+                        <items>
+                            <item>Off</item>
+                            <item>Grid</item>
+                            <item>Gray Scale 16</item>
+                            <item>Flat White</item>
+                            <item>Flat Gray</item>
+                            <item>Flat Black</item>
+                            <item>Checker</item>
+                            <item>17 Point</item>
+                            <item>Edge Blend</item>
+                            <item>Color Bars</item>
+                            <item>Multi-color</item>
+                            <item>RGBW Ramp</item>
+                            <item>Horizontal Ramp</item>
+                            <item>Vertical Ramp</item>
+                            <item>Diagonal Ramp</item>
+                            <item>Square Grid</item>
+                            <item>Diagonal Grid</item>
+                            <item>Prism / Convergence</item>
+                            <item>Boresight</item>
+                            <item>Integrator Rod</item>
+                            <item>Electronic Convergence</item>
+                        </items>
+                        <default>Off</default>
+                    </param>
+                </params>
+            </command>
+            <command>
+                <name>SetLiteLOC</name>
+                <description>Set LiteLOC to %Enabled%</description>
+                <params>
+                    <param>
+                        <name>Enabled</name>
+                        <type>LIST</type>
+                        <items>
+                            <item>True</item>
+                            <item>False</item>
+                        </items>
+                        <default>True</default>
+                    </param>
+                </params>
+            </command>
+            <!-- Lens moves are only accepted while the projector is on; in
+                 standby the projector rejects them as "Disabled Control". -->
+            <command>
+                <name>SetLensPosition</name>
+                <description>Move lens %Axis% to %Position%</description>
+                <params>
+                    <param>
+                        <name>Axis</name>
+                        <type>LIST</type>
+                        <items>
+                            <item>Focus</item>
+                            <item>Zoom</item>
+                            <item>Horizontal</item>
+                            <item>Vertical</item>
+                        </items>
+                        <default>Focus</default>
+                    </param>
+                    <param>
+                        <name>Position</name>
+                        <type>STRING</type>
+                        <default>0</default>
+                    </param>
+                </params>
+            </command>
+            <command>
+                <name>NudgeLens</name>
+                <description>Nudge lens %Axis% by %Steps% steps</description>
+                <params>
+                    <param>
+                        <name>Axis</name>
+                        <type>LIST</type>
+                        <items>
+                            <item>Focus</item>
+                            <item>Zoom</item>
+                            <item>Horizontal</item>
+                            <item>Vertical</item>
+                        </items>
+                        <default>Focus</default>
+                    </param>
+                    <param>
+                        <name>Steps</name>
+                        <type>RANGED_INTEGER</type>
+                        <minimum>-500</minimum>
+                        <maximum>500</maximum>
+                        <default>10</default>
+                    </param>
+                </params>
+            </command>
+            <!-- This projector has no lens memory of its own, so presets are
+                 stored by the driver and replayed as absolute moves. -->
+            <command>
+                <name>SaveLensPreset</name>
+                <description>Save current lens position as preset %Preset%</description>
+                <params>
+                    <param>
+                        <name>Preset</name>
+                        <type>LIST</type>
+                        <items>
+                            <item>1</item>
+                            <item>2</item>
+                            <item>3</item>
+                            <item>4</item>
+                        </items>
+                        <default>1</default>
+                    </param>
+                </params>
+            </command>
+            <command>
+                <name>RecallLensPreset</name>
+                <description>Recall lens preset %Preset%</description>
+                <params>
+                    <param>
+                        <name>Preset</name>
+                        <type>LIST</type>
+                        <items>
+                            <item>1</item>
+                            <item>2</item>
+                            <item>3</item>
+                            <item>4</item>
+                        </items>
+                        <default>1</default>
+                    </param>
+                </params>
+            </command>
+            <command>
+                <name>SendRaw</name>
+                <description>Send raw Christie command %Command%</description>
+                <params>
+                    <param>
+                        <name>Command</name>
+                        <type>STRING</type>
+                        <default>PWR?</default>
+                    </param>
+                </params>
+            </command>
+            <command>
+                <name>RefreshStatus</name>
+                <description>Refresh all status from the projector</description>
+            </command>
+        </commands>
+    </config>
+
+    <composer_categories>
+        <category>Audio/Video</category>
+    </composer_categories>
+
+    <connections>
+        <!-- Proxy binding: how Control4 sees this as a projector. The class
+             is TV, not PROJECTOR: the projector proxy reuses the TV proxy's
+             binding class, and every shipping projector driver in Control4's
+             database declares TV here. An unknown class means the binding is
+             never created, taking the four inputs hanging off it with it. -->
+        <connection>
+            <id>5001</id>
+            <facing>6</facing>
+            <connectionname>PROJECTOR</connectionname>
+            <type>2</type>
+            <consumer>False</consumer>
+            <audiosource>False</audiosource>
+            <videosource>False</videosource>
+            <linelevel>False</linelevel>
+            <classes>
+                <class>
+                    <classname>TV</classname>
+                </class>
+            </classes>
+        </connection>
+
+        <!-- Control connection: the installer sets the projector's IP here,
+             under Connections > Network in Composer. Port 3002 is Christie's
+             serial API. keep_connection holds the socket open so unsolicited
+             replies and fast polling both work. -->
+        <connection>
+            <id>6001</id>
+            <facing>6</facing>
+            <connectionname>Christie Serial API</connectionname>
+            <type>4</type>
+            <consumer>True</consumer>
+            <audiosource>False</audiosource>
+            <videosource>False</videosource>
+            <linelevel>True</linelevel>
+            <idautobind>5001</idautobind>
+            <classes>
+                <class>
+                    <classname>TCP</classname>
+                    <ports>
+                        <port>
+                            <number>3002</number>
+                            <auto_connect>True</auto_connect>
+                            <monitor_connection>True</monitor_connection>
+                            <keep_connection>True</keep_connection>
+                        </port>
+                    </ports>
+                </class>
+            </classes>
+        </connection>
+
+        <!-- Video inputs. The Christie SIN index each one selects is set by
+             the "Input N Index" properties, because the projector does not
+             publish its input list over either interface. -->
+        <connection proxybindingid="5001" verified="False">
+            <id>1001</id>
+            <facing>6</facing>
+            <connectionname>HDMI 1</connectionname>
+            <type>5</type>
+            <consumer>True</consumer>
+            <audiosource>False</audiosource>
+            <videosource>False</videosource>
+            <linelevel>True</linelevel>
+            <classes>
+                <class>
+                    <classname>HDMI</classname>
+                </class>
+            </classes>
+        </connection>
+        <connection proxybindingid="5001" verified="False">
+            <id>1002</id>
+            <facing>6</facing>
+            <connectionname>HDMI 2</connectionname>
+            <type>5</type>
+            <consumer>True</consumer>
+            <audiosource>False</audiosource>
+            <videosource>False</videosource>
+            <linelevel>True</linelevel>
+            <classes>
+                <class>
+                    <classname>HDMI</classname>
+                </class>
+            </classes>
+        </connection>
+        <connection proxybindingid="5001" verified="False">
+            <id>1003</id>
+            <facing>6</facing>
+            <connectionname>HDMI 3</connectionname>
+            <type>5</type>
+            <consumer>True</consumer>
+            <audiosource>False</audiosource>
+            <videosource>False</videosource>
+            <linelevel>True</linelevel>
+            <classes>
+                <class>
+                    <classname>HDMI</classname>
+                </class>
+            </classes>
+        </connection>
+        <connection proxybindingid="5001" verified="False">
+            <id>1004</id>
+            <facing>6</facing>
+            <connectionname>HDMI 4</connectionname>
+            <type>5</type>
+            <consumer>True</consumer>
+            <audiosource>False</audiosource>
+            <videosource>False</videosource>
+            <linelevel>True</linelevel>
+            <classes>
+                <class>
+                    <classname>HDMI</classname>
+                </class>
+            </classes>
+        </connection>
+
+        <!-- Room binding. This is what lets a room use the projector as its
+             video end-point, which is what makes Watch flows drive it at all;
+             without it the inputs are bindable but no room owns the display.
+             Video only - the Trinnov is the room's audio end-point, so
+             declaring AUDIO_SELECTION/AUDIO_VOLUME here would have Control4
+             route room volume to a projector that has no audio path. -->
+        <connection proxybindingid="5001">
+            <id>7000</id>
+            <facing>6</facing>
+            <connectionname>Room Selection - Output</connectionname>
+            <type>7</type>
+            <consumer>False</consumer>
+            <audiosource>False</audiosource>
+            <videosource>True</videosource>
+            <linelevel>True</linelevel>
+            <classes>
+                <class>
+                    <classname>VIDEO_SELECTION</classname>
+                </class>
+            </classes>
+        </connection>
+    </connections>
+</devicedata>

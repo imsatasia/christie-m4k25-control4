@@ -1,0 +1,7 @@
+<Driver type="c4z" name="christie_m4k25" squishLua="false">
+    <Items>
+        <Item type="file" name="driver.xml" />
+        <Item type="file" name="driver.lua" />
+        <Item type="file" c4zDir="www" name="www/documentation.html" />
+    </Items>
+</Driver>

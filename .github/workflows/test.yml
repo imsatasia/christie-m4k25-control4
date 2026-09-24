@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Only PR runs are superseded. A push run is never cancelled: the secret scan
+# checks just the commits since the previous push, so a cancelled run would
+# leave them unscanned.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  secrets:
+    name: Secret scan
+    uses: ./.github/workflows/secret-scan.yml
+
+  validate:
+    name: Validate driver.xml + driver.lua
+    needs: [secrets]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Build test image
+        run: docker build -t christie-lua .
+
+      - name: Build package (validates driver.xml + compiles driver.lua)
+        run: ./build.sh
+
+  test:
+    name: Offline test suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: [validate]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Build test image
+        run: docker build -t christie-lua .
+
+      - name: Run offline tests
+        run: docker run --rm -v "$PWD":/d -w /d christie-lua lua5.1 tests/test_driver.lua
