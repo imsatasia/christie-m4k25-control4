@@ -6,5 +6,5 @@
 #
 # This used to be a heredoc duplicated across three markdown files; it's a
 # real file now so CI and local dev share one definition.
-FROM alpine:3.20
+FROM alpine:3.24
 RUN apk add --no-cache lua5.1 lua5.1-socket
